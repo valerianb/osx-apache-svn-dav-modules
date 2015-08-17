@@ -55,38 +55,20 @@ tar -xf 'subversion-'$svnadmin_version'.tar'
 	#
 	echo 'Configuring Subversion build…'
 	./configure         >./build.log   2>./build_strerr.log
-	echo 'Making "mod_dav_svn"…'
-	make mod_dav_svn    >>./build.log  2>>./build_strerr.log
-	echo 'Making "mod_authz_svn"…'
-	make mod_authz_svn  >>./build.log  2>>./build_strerr.log
+	echo 'Making svn…'
+	make >>./build.log 2>>./build_strerr.log
 	
-	# Fix up the two Apache modules…
-	#
-	# Info: The resulting modules contain references to '/usr/local/lib' and expect various libraries (*.dylib)
-	#       of Subversion to be located there. Since we have those libraries already inside the Xcode.app bundle,
-	#       we simply update the internal links to point to those versions (else it would fail when httpd loads
-	#       the modules.) Alternatively a second set of the libraries could be installed to '/usr/local/lib'
-	#       via 'make install', but that is a pointless waste of disk space, IMHO.
-	#
-	
-	echo 'Fixing dynamic library paths in "mod_dav_svn"…'
-	liblist=`otool -L subversion/mod_dav_svn/.libs/mod_dav_svn.so | sed -n 's/^'$'\t''\/usr\/local\/lib\/libsvn_\(.*\).dylib .*$/\1/p'`
+	# Copy dylibs for the modules to /usr/local/lib
+	echo 'Copying dylibs to /usr/local/lib'
+	liblist=`ls -d subversion/libsvn_*`
 	for lib in $liblist; do
-		echo 'Fixing path of "libsvn_'$lib'" in mod_dav_svn.so…'
-		install_name_tool -change '/usr/local/lib/libsvn_'"$lib"'.dylib' '/Applications/Xcode.app/Contents/Developer/usr/lib/libsvn_'"$lib"'.dylib' 'subversion/mod_dav_svn/.libs/mod_dav_svn.so'
+		if [ -d "$lib"'/.libs' ]; then
+			for file in "$lib"/.libs/*.dylib; do
+				cp "$file" '/usr/local/lib/'
+			done
+		fi
 	done
-	# Output used library list for verification…
-	#otool -L 'subversion/mod_dav_svn/.libs/mod_dav_svn.so'
-	
-	echo 'Fixing dynamic library paths in "mod_authz_svn"…'
-	liblist=`otool -L subversion/mod_authz_svn/.libs/mod_authz_svn.so | sed -n 's/^'$'\t''\/usr\/local\/lib\/libsvn_\(.*\).dylib .*$/\1/p'`
-	for lib in $liblist; do
-		echo 'Fixing path of "libsvn_'$lib'" in mod_authz_svn.so…'
-		install_name_tool -change '/usr/local/lib/libsvn_'"$lib"'.dylib' '/Applications/Xcode.app/Contents/Developer/usr/lib/libsvn_'"$lib"'.dylib' 'subversion/mod_authz_svn/.libs/mod_authz_svn.so'
-	done
-	# Output used library list for verification…
-	#otool -L 'subversion/mod_authz_svn/.libs/mod_authz_svn.so'
-	
+
 	#
 	# TODO: Maybe it would be smarter and go quicker to just build the two libs with the proper paths? :-P
 	#	
